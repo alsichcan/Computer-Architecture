@@ -17,6 +17,38 @@
 
 #include <stdio.h>
 
+int writeEncoding(int* count, int* idx, int* length, char* const dst, const int dstlen){
+    // TODO: Count 쓰기 (count = 0이 되도록)
+    for(int pos = 2; pos >= 0; pos--){
+        int val = 0;
+        if(pos == 2){
+            val = *count / 4;
+            *count -= val * 4;
+        }
+        else if (pos == 1){
+            val = *count / 2;
+            *count -= val * 2;
+        }
+        else{
+            val = *count;
+            *count -= val;
+        }
+
+        int mask = 1 << *idx;
+        *(dst+*length) = (*(dst+*length) & ~mask) | (val << *idx);
+
+        (*idx)--;
+        if(*idx < 0){
+            *idx = 7;
+            (*length)++;
+            if(*length == dstlen)
+                return -1;
+        }
+    }
+
+    return 0;
+}
+
 /* TODO: Implement this function */
 int encode(const char* const src, const int srclen, char* const dst, const int dstlen)
 {
@@ -38,65 +70,13 @@ int encode(const char* const src, const int srclen, char* const dst, const int d
             if(bit == prev_bit){
                 count++;
                 if(count == 7){
-                    // TODO: Count 쓰기 (count = 0이 되도록)
-                    for(int pos = 2; pos >= 0; pos--){
-                        int val = 0;
-                        if(pos == 2){
-                            val = count / 4;
-                            count -= val * 4;
-                        }
-                        else if (pos == 1){
-                            val = count / 2;
-                            count -= val * 2;
-                        }
-                        else{
-                            val = count;
-                            count -= val;
-                        }
+                    if (writeEncoding(&count, &idx, &length, dst, dstlen)==-1) return -1;
 
-                        int mask = 1 << idx;
-                        *(dst+length) = (*(dst+length) & ~mask) | (val << idx);
-
-                        idx--;
-                        if(idx < 0){
-                            idx = 7;
-                            length++;
-                            if(length == dstlen)
-                                return -1;
-                        }
-                    }
                     // Bit 전환
                     prev_bit = 1 - prev_bit;
                 }
             } else{ // 다른 bit일 경우 전의 count를 encoding하여 기록
-                // TODO: Count 쓰기 (count = 0이 되도록)
-                for(int pos = 2; pos >= 0; pos--) {
-                    int val = 0;
-                    if(pos == 2){
-                        val = count / 4;
-                        count -= val * 4;
-                    }
-                    else if (pos == 1){
-                        val = count / 2;
-                        count -= val * 2;
-                    }
-                    else{
-                        val = count;
-                        count -= val;
-                    }
-
-                    int mask = 1 << idx;
-
-                    *(dst + length) = (*(dst + length) & ~mask) | (val << idx);
-
-                    idx--;
-                    if(idx < 0){
-                        idx = 7;
-                        length++;
-                        if(length == dstlen)
-                            return -1;
-                    }
-                }
+                if (writeEncoding(&count, &idx, &length, dst, dstlen)==-1) return -1;
                 // 새로운 Bit의 count 증가
                 prev_bit = 1 - prev_bit;
                 count++;
@@ -104,35 +84,9 @@ int encode(const char* const src, const int srclen, char* const dst, const int d
         }
     }
 
-    // TODO : 남은 Count 처리하기
-    for(int pos = 2; pos >= 0; pos--){
-        int val = 0;
+    // 남은 Count 처리하기
+    if (writeEncoding(&count, &idx, &length, dst, dstlen)==-1) return -1;
 
-        if(pos == 2){
-            val = count / 4;
-            count -= val * 4;
-        }
-        else if (pos == 1){
-            val = count / 2;
-            count -= val * 2;
-        }
-        else{
-            val = count;
-            count -= val;
-        }
-
-        int mask = 1 << idx;
-
-        *(dst+length) = (*(dst+length) & ~mask) | (val << idx);
-
-        idx--;
-        if(idx < 0){
-            idx = 7;
-            length++;
-            if(length == dstlen)
-                return -1;
-        }
-    }
 
     // Padding 채우기
     while(idx >= 0){
@@ -198,6 +152,5 @@ int decode(const char* const src, const int srclen, char* const dst, const int d
         }
         curr_bit = 1 - curr_bit; // bit 전환
     }
-
     return length;
 }
