@@ -16,7 +16,6 @@
 //---------------------------------------------------------------
 
 #include "pa2.h"
-#include <stdio.h>
 
 void writeBit(int idx, unsigned char* dst, int val){
     int mask = 1 << idx;
@@ -64,7 +63,6 @@ fp10 int_fp10(int n)
     int sticky_bit = 0;
 
     unsigned int value;
-
     if(n < 0){
         sign = 1;
         value = (unsigned int) (n * -1);
@@ -127,15 +125,40 @@ fp10 int_fp10(int n)
 /* Convert 10-bit floating point to 32-bit signed integer */
 int fp10_int(fp10 x)
 {
-	/* TODO */
+    int result = 0;
+    int exp = 0;
+    int frac = 0;
 
+	unsigned short value = x;
+    unsigned char* src = (unsigned char *) &value;
 
+    // Sign bit 추출
+    int sign = (*(src + 1) >> 7) & 1;
 
+    // Exp 추출
+    for(int pos = 4; pos >= 0; pos--){
+        if(pos == 4) exp += ((*(src + 1) >> 0) & 1) << pos;
+        else exp += ((*src >> (pos + 4)) & 1) << pos;
+    }
 
+    // Fraction 추출
+    for(int pos = 3; pos >= 0; pos--){
+        frac += ((*src >> pos) & 1) << pos;
+    }
 
+    // Denormalized : Special Values (Infinity, NaN)
+    if(exp == 31) result = 0x80000000;
+    // Denoramlized : -0과 0처리
+    else if(exp == 0 && frac == 0) result = 0;
+    else{ // Normalized value
+        frac += 16;
+        exp -= 15;
+        if(exp >= 4) result += frac << (exp-4);
+        else result += (int) (frac >> (4-exp));
 
-
-	return 1;
+        if(sign == 1) result *= -1;
+    }
+	return result;
 }
 
 /* Convert 32-bit single-precision floating point to 10-bit floating point */
