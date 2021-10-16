@@ -229,23 +229,31 @@ fp10 float_fp10(float f)
         }
     }
 
-    exp = exp - 127 + 15;
-    // Denormalized : Special Values (Infinity, NaN)
-    if(exp > 30){
-        writeInfinity(&result, sign); // Infinity
-        if(frac != 0) writeBit(0, (unsigned char*) &result, 1); // NaN
+    // Denormalized : Special Values (NaN)
+    if(exp == 255 && frac != 0){
+        writeInfinity(&result, sign);
+        writeBit(0, (unsigned char*) & result, 1);
     }
-    // Denormalized : 0.0
+    // Denormalized : Special Values (Infinity)
+    else if(exp - 127 + 15 >= 31){
+        writeInfinity(&result, sign); // Infinity
+    }
+    // Denormalized : +0.0 / -0.0
     else if(exp == 0 && frac == 0){
         writeFP10(&result, sign, 0, 0);
     }
-    // Denoramalized : small value very close to 0.0
-    else if (exp == 0 && frac != 0){
-        sticky_bit = round_bit || sticky_bit;
-        round_bit = frac % 2;
-        frac = frac >> 1;
-        frac += 1 << 3;
-        ls_bit = frac % 2;
+    // Denormalized : small value very close to 0.0
+    else if (exp - 127 + 15 <= 0){
+        frac += 16;
+        exp = exp - 127 + 15;
+
+        while(exp < 1){
+            exp++;
+            sticky_bit = round_bit || sticky_bit;
+            round_bit = frac % 2;
+            frac = frac >> 1;
+            ls_bit = frac % 2;
+        }
 
         // Round-to-Even 처리 - Round-down은 별도로 처리할 필요가 없다.
         if(round_bit == 1){
@@ -254,16 +262,16 @@ fp10 float_fp10(float f)
                 if(frac == 16){ // Re-normalize
                     frac = 0;
                     exp++;
+                    writeFP10(&result, sign, 1, (unsigned char) frac);
+                    return result;
                 }
             }
         }
-        writeFP10(&result, sign, exp, (unsigned char) frac);
-    }
-    else if(exp < 0){
-        writeFP10(&result, sign, 0, 0);
+        writeFP10(&result, sign, 0, (unsigned char) frac);
     }
     // Normalized value
     else{
+        exp = exp - 127 + 15;
         writeFP10(&result, sign, exp, (unsigned char) frac);
     }
      return result;
