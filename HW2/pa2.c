@@ -151,8 +151,8 @@ int fp10_int(fp10 x)
     // Denoramlized : -0과 0처리
     else if(exp == 0 && frac == 0) result = 0;
     else{ // Normalized value
-        frac += 16;
-        exp -= 15;
+        frac += 1 << 4;
+        exp -= (1 << (5 - 1)) - 1;
         if(exp >= 4) result += frac << (exp-4);
         else result += (int) (frac >> (4-exp));
 
@@ -164,16 +164,91 @@ int fp10_int(fp10 x)
 /* Convert 32-bit single-precision floating point to 10-bit floating point */
 fp10 float_fp10(float f)
 {
-	/* TODO */
+    unsigned short result = 0;
+    int sign = 0;
+    int exp = 0;
 
+    // Variable for Fraction
+    int frac = 0;
+    int frac_idx = 3;
+    int ls_bit = 0;
+    int round_bit = 0;
+    int sticky_bit = 0;
 
+    unsigned char* src = (unsigned char *) &f;
 
+    // Sign bit 추출
+    sign = (*(src + sizeof(float) - 1) >> 7) & 1;
 
+    // Exp 추출
+    for(int pos = 7; pos >= 0; pos--){
+        if(pos >= 1) exp += ((*(src + 3) >> (pos-1)) & 1) << pos;
+        else exp += ((*(src + 2) >> 7) & 1) << 0;
+    }
 
+    // Fraction 추출
+    for(int pos = 22; pos >= 0; pos--){
+        int bit = (*(src + pos/8) >> (pos - (pos/8)*8)) & 1;
+        if(frac_idx >= 0){
+            if(bit == 1) frac += 1 << frac_idx;
+            if(frac_idx == 0) ls_bit = bit;
+        }
+        else if(frac_idx == -1) round_bit = bit;
+        else if(bit == 1) sticky_bit = bit;
+        frac_idx--;
+    }
 
+    // Round-to-Even 처리 - Round-down은 별도로 처리할 필요가 없다.
+    if(round_bit == 1){
+        if((sticky_bit == 1) || (ls_bit == 1)){
+            frac++;
+            if(frac == 16){ // Re-normalize
+                frac = 0;
+                exp++;
+            }
+        }
+    }
 
+    printf("Sign: %d, Frac: %d, Exp: %d \n", sign, frac, exp);
 
-	return 1;
+    exp = exp - 127 + 15;
+    // Denormalized : Special Values (Infinity, NaN)
+    if(exp > 30){
+        writeInfinity(&result, sign); // Infinity
+        if(frac != 0) writeBit(0, (unsigned char*) &result, 1); // NaN
+    }
+    // Denormalized : 0.0
+    else if(exp == 0 && frac == 0){
+        writeFP10(&result, sign, 0, 0);
+    }
+    // Denoramalized : small value very close to 0.0
+    else if (exp == 0 && frac != 0){
+        sticky_bit = round_bit || sticky_bit;
+        round_bit = frac % 2;
+        frac = frac >> 1;
+        frac += 1 << 3;
+        ls_bit = frac % 2;
+
+        // Round-to-Even 처리 - Round-down은 별도로 처리할 필요가 없다.
+        if(round_bit == 1){
+            if((sticky_bit == 1) || (ls_bit == 1)){
+                frac++;
+                if(frac == 16){ // Re-normalize
+                    frac = 0;
+                    exp++;
+                }
+            }
+        }
+        writeFP10(&result, sign, exp, (unsigned char) frac);
+    }
+    else if(exp < 0){
+        writeFP10(&result, sign, 0, 0);
+    }
+    // Normalized value
+    else{
+        writeFP10(&result, sign, exp, (unsigned char) frac);
+    }
+     return result;
 }
 
 /* Convert 10-bit floating point to 32-bit single-precision floating point */

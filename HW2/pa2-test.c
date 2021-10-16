@@ -116,35 +116,35 @@ int main(void)
 //		printf("\n");
 //	}
 
-	printf("\n%sTest 2: Casting from fp10 to int%s\n", CYAN, RESET);
-	for (int i = 0; i < N; i++) {
-		uint32_t result = (uint32_t)fp10_int(test2[i]);
-
-		PRINT(uint16_t, "fp10", test2[i]);
-		printf(" => ");
-		PRINT(uint32_t, "int", result);
-		printf(", ");
-		PRINT(uint32_t, "ans", ans2[i]);
-		printf(", ");
-		COMP(result, ans2[i], int);
-		printf("\n");
-	}
-
-//	printf("\n%sTest 3: Casting from float to fp10%s\n", CYAN, RESET);
+//	printf("\n%sTest 2: Casting from fp10 to int%s\n", CYAN, RESET);
 //	for (int i = 0; i < N; i++) {
-//		float *p = (float *)&test3[i];
-//		float f = *p;
-//		uint16_t result = (uint16_t)float_fp10(f);
+//		uint32_t result = (uint32_t)fp10_int(test2[i]);
 //
-//		PRINT(uint32_t, "float", test3[i]);
+//		PRINT(uint16_t, "fp10", test2[i]);
 //		printf(" => ");
-//		PRINT(uint16_t, "fp10", result);
+//		PRINT(uint32_t, "int", result);
 //		printf(", ");
-//		PRINT(uint16_t, "ans", ans3[i]);
+//		PRINT(uint32_t, "ans", ans2[i]);
 //		printf(", ");
-//		COMP(result, ans3[i], fp10);
+//		COMP(result, ans2[i], int);
 //		printf("\n");
 //	}
+
+	printf("\n%sTest 3: Casting from float to fp10%s\n", CYAN, RESET);
+	for (int i = 0; i < N; i++) {
+		float *p = (float *)&test3[i];
+		float f = *p;
+		uint16_t result = (uint16_t)float_fp10(f);
+
+		PRINT(uint32_t, "float", test3[i]);
+		printf(" => ");
+		PRINT(uint16_t, "fp10", result);
+		printf(", ");
+		PRINT(uint16_t, "ans", ans3[i]);
+		printf(", ");
+		COMP(result, ans3[i], fp10);
+		printf("\n");
+	}
 //
 //	printf("\n%sTest 4: Casting from fp10 to float%s\n", CYAN, RESET);
 //	for (int i = 0; i < N; i++) {
