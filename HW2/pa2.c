@@ -218,32 +218,20 @@ fp10 float_fp10(float f)
         frac_idx--;
     }
 
-    // Round-to-Even 처리 - Round-down은 별도로 처리할 필요가 없다.
-    if(round_bit == 1){
-        if((sticky_bit == 1) || (ls_bit == 1)){
-            frac++;
-            if(frac == 16){ // Re-normalize
-                frac = 0;
-                exp++;
-            }
-        }
-    }
-
     // Denormalized : Special Values (NaN)
     if(exp == 255 && !(frac == 0 && sticky_bit == 0 && round_bit == 0)){
         writeInfinity(&result, sign);
         writeBit(0, (unsigned char*) &result, 1);
-    }
-    // Denormalized : Special Values (Infinity)
-    else if(exp - 127 + 15 >= 31){
-        writeInfinity(&result, sign); // Infinity
+        return result;
     }
     // Denormalized : +0.0 / -0.0
     else if(exp == 0 && frac == 0 && sticky_bit == 0 && round_bit == 0){
         writeFP10(&result, sign, 0, 0);
+        return result;
     }
-    // Denormalized : small value very close to 0.0
-    else if (exp - 127 + 15 <= 0){
+
+    // Round-to-Even 처리 - Round-down은 별도로 처리할 필요가 없다.
+    if(exp - 127 + 15 <= 0) { // Denormalized-value의 가능성
         frac += 16;
         exp = exp - 127 + 15;
 
@@ -261,13 +249,29 @@ fp10 float_fp10(float f)
                 frac++;
                 if(frac == 16){ // Re-normalize
                     frac = 0;
-                    exp++;
                     writeFP10(&result, sign, 1, (unsigned char) frac);
                     return result;
                 }
             }
         }
         writeFP10(&result, sign, 0, (unsigned char) frac);
+        return result;
+    } else{
+        if(round_bit == 1){
+            if((sticky_bit == 1) || (ls_bit == 1)){
+                frac++;
+                if(frac == 16){ // Re-normalize
+                    frac = 0;
+                    exp++;
+                }
+            }
+        }
+    }
+
+
+    // Denormalized : Special Values (Infinity)
+    if(exp - 127 + 15 >= 31){
+        writeInfinity(&result, sign); // Infinity
     }
     // Normalized value
     else{
