@@ -44,6 +44,26 @@ void writeFP10(unsigned short* dst, int sign, int exp, unsigned char frac){
     }
 }
 
+void writeFP(float* dst, int sign, int exp, unsigned char frac){
+    // Write the Sign Bit
+    writeBit(7,((unsigned char *)dst) + 3, sign);
+
+    // Write the Exponent
+    for(int pos = 0; pos <= 7; pos++){
+        int bit = exp % 2;
+        exp /= 2;
+
+        if(pos == 0) writeBit(7, ((unsigned char *)dst) + 2, bit);
+        else writeBit(pos-1, ((unsigned char *)dst) + 3, bit);
+    }
+
+    // Write the Fraction
+    for(int pos = 3; pos >= 0; pos--){
+        int bit = (frac >> pos) & 1; // 앞에서부터 1bit씩 추출
+        writeBit(pos+3, ((unsigned char *)dst) + 2, bit);
+    }
+}
+
 void writeInfinity(unsigned short* dst, int sign){
     writeFP10(dst, sign, 31, 0);
 }
@@ -252,14 +272,49 @@ fp10 float_fp10(float f)
 /* Convert 10-bit floating point to 32-bit single-precision floating point */
 float fp10_float(fp10 x)
 {
-	/* TODO */
+    float result = 0;
+    int exp = 0;
+    int frac = 0;
 
+    unsigned short value = x;
+    unsigned char* src = (unsigned char *) &value;
 
+    // Sign bit 추출
+    int sign = (*(src + 1) >> 7) & 1;
 
+    // Exp 추출
+    for(int pos = 4; pos >= 0; pos--){
+        if(pos == 4) exp += ((*(src + 1) >> 0) & 1) << pos;
+        else exp += ((*src >> (pos + 4)) & 1) << pos;
+    }
 
+    // Fraction 추출
+    for(int pos = 3; pos >= 0; pos--){
+        frac += ((*src >> pos) & 1) << pos;
+    }
 
-
-
-
-	return 1.0;
+    // Denormalized : Special Values (Infinity, NaN)
+    if(exp == 31){
+        writeFP(&result, sign, 255, 0);
+        if(frac != 0) writeBit(0, (unsigned char*) &result, 1);
+    }
+    // Denoramlized : -0과 0처리
+    else if(exp == 0 && frac == 0){
+        if(sign == 1) writeBit(7, ((unsigned char*) &result)+3, 1);
+    }
+    // Denormalized : Small value close to 0.0
+    else if(exp == 0 && frac != 0){
+        while(frac < 16){
+            frac = frac << 1;
+            exp--;
+        }
+        exp = exp - 14 + 127;
+        frac -= 16;
+        writeFP(&result, sign, exp, frac);
+    }
+    else{ // Normalized value
+        exp = exp - 15 + 127;
+        writeFP(&result, sign, exp, frac);
+    }
+    return result;
 }
