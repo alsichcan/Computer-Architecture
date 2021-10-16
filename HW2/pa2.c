@@ -209,8 +209,6 @@ fp10 float_fp10(float f)
         }
     }
 
-    printf("Sign: %d, Frac: %d, Exp: %d \n", sign, frac, exp);
-
     exp = exp - 127 + 15;
     // Denormalized : Special Values (Infinity, NaN)
     if(exp > 30){
