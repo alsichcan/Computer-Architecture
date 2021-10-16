@@ -230,16 +230,16 @@ fp10 float_fp10(float f)
     }
 
     // Denormalized : Special Values (NaN)
-    if(exp == 255 && frac != 0){
+    if(exp == 255 && !(frac == 0 && sticky_bit == 0 && round_bit == 0)){
         writeInfinity(&result, sign);
-        writeBit(0, (unsigned char*) & result, 1);
+        writeBit(0, (unsigned char*) &result, 1);
     }
     // Denormalized : Special Values (Infinity)
     else if(exp - 127 + 15 >= 31){
         writeInfinity(&result, sign); // Infinity
     }
     // Denormalized : +0.0 / -0.0
-    else if(exp == 0 && frac == 0){
+    else if(exp == 0 && frac == 0 && sticky_bit == 0 && round_bit == 0){
         writeFP10(&result, sign, 0, 0);
     }
     // Denormalized : small value very close to 0.0
