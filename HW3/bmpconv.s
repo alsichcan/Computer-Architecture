@@ -43,7 +43,7 @@ bmpconv:
 
 # For loop : output[i][j]에 해당하는 pixel을 위한 convolution
     addi sp, sp, -4
-    sw t2, 0(sp)
+    sw a2, 0(sp)
 
 outer_loop_start:
     beq t1, x0, outer_loop_end
@@ -98,7 +98,7 @@ write_start:
     beq x0, x0, rgb_written
 write_b_or_g:
     addi a1, x0, 1
-    bne a4, a1, write_blue
+    bne a3, a1, write_blue
     lw a2, 4(sp)
     beq x0, x0, rgb_written
 write_blue:
@@ -110,7 +110,7 @@ rgb_written:
     addi a4, a4, 1
     addi a0, x0, 4
     bne a4, a0, write_continue
-    addi t4, t4, 1
+    addi t4, t4, 4
     add a4, x0, x0
 
 write_continue:
@@ -131,7 +131,7 @@ update:
     addi a3, a3, 1
     addi a1, x0, 4
     bne a3, a1, update
-    addi t0, t0, 1
+    addi t0, t0, 4
     add a3, x0, x0
     beq x0, x0, update
 
@@ -142,28 +142,33 @@ next_pixel:
 inner_loop_end:
 # TODO : 한행의 처리가 모두 끝났을 때 (padding 처리)
 # TODO : write padding
-write_padding:
     addi a1, x0, 4
-    bge a4, a1, arg_update
-    add a2, x0, x0
+read_padding:
+    beq a3, x0, write_padding
+    addi a3, a3, 1
+    bne a3, a1, read_padding
+    add a3, x0, x0
+    addi t0, t0, 4
 
+write_padding:
+    beq a4, x0, arg_update
+    add a2, x0, x0
     addi sp, sp, -4
     sw ra, 0(sp)
     jal ra, writeImage
     lw ra, 0(sp)
     addi sp, sp, 4
 
+    addi a1, x0, 4
     addi a4, a4, 1
-    beq x0, x0, write_padding
+    bne a4, a1, write_padding
+    add a4, x0, x0
+    addi t4, t4, 4
 
 arg_update:
 # TODO : 변수 update
-    add a3, x0, x0
-    add a4, x0, x0
-    addi t0, t0, 1
     addi t1, t1, -1
     lw t2, 0(sp)
-    addi t4, t4, 1
     beq x0, x0, outer_loop_start
 
 outer_loop_end:
@@ -190,6 +195,7 @@ calPixel:
     add a0, a2, a2
     add a2, a2, a0
     add a2, a2, a1
+    slli a2, a2, 2
 
 # Stack Memory에 추가하기
     addi sp, sp, -32
@@ -224,44 +230,44 @@ inner_pixel_start:
     beq t2, x0, inner_pixel_end
     jal ra, readKernel
     add a2, a0, x0
+    addi sp, sp, -4
+    sw a2, 0(sp) # kernel 값 저장
     beq a2, x0, rgb_ignored
     addi a4, x0, 2
 rgb_start:
 # TODO : rgb value읽어오기
     blt a4, x0, rgb_end
-    addi sp, sp, -4
-    sw a2, 0(sp) # kernel 값 저장
     jal ra, readImage
     lw a2, 0(sp)
-    addi sp, sp, 4
 
-    bge a2, x0, pixel_value
-    xori a0, a0, -1
+    addi a1, x0, 2
+    blt a2, a1, pixel_value
+    sub a0, x0, a0
 pixel_value:
     add a2, a0, x0
 
     bne a4, x0, b_or_g
-    lw a0, 0(sp)
-    add a0, a0, a2
-    sw a0, 0(sp)
-    beq x0, x0, rgb_saved
-b_or_g:
-    addi a1, x0, 1
-    bne a4, a1, blue
     lw a0, 4(sp)
     add a0, a0, a2
     sw a0, 4(sp)
     beq x0, x0, rgb_saved
-blue:
+b_or_g:
+    addi a1, x0, 1
+    bne a4, a1, blue
     lw a0, 8(sp)
     add a0, a0, a2
     sw a0, 8(sp)
+    beq x0, x0, rgb_saved
+blue:
+    lw a0, 12(sp)
+    add a0, a0, a2
+    sw a0, 12(sp)
     beq x0, x0, rgb_saved
 rgb_saved: # read_bit_offset update
     addi a3, a3, 1
     addi a0, x0, 4
     bne a3, a0, rgb_continue
-    addi t0, t0, 1
+    addi t0, t0, 4
     add a3, x0, x0
 rgb_continue:
     addi a4, a4, -1
@@ -275,7 +281,7 @@ rgb_ignored_loop:
     addi a1, a1, -1
     addi a3, a3, 1
     bne a3, a0, rgb_ignored_loop
-    addi t0, t0, 1
+    addi t0, t0, 4
     add a3, x0, x0
     beq x0, x0, rgb_ignored_loop
 
@@ -283,16 +289,18 @@ rgb_end: # kernel_offset update
     addi t4, t4, 1
     addi a0, x0, 4
     bne t4, a0, pixel_end
-    addi t3, t3, 1
+    addi t3, t3, 4
     add t4, x0, x0
 
 pixel_end:
     addi t2, t2, -1
+    addi sp, sp, 4
     beq x0, x0, inner_pixel_start
 
 inner_pixel_end:
     addi t1, t1, -1
     addi t2, x0, 3
+
     beq x0, x0, outer_pixel_start
 
 outer_pixel_end:
@@ -309,7 +317,7 @@ outer_pixel_end:
 # t4 : kernel offset
 readKernel:
     addi a0, x0, 0x000000FF
-    slli a1, t4, 4
+    slli a1, t4, 3
     sll a0, a0, a1
     lw a2, 0(t3)
     and a0, a0, a2
@@ -321,7 +329,7 @@ readKernel:
 # a3 : read_bit_offset
 readImage:
     addi a0, x0, 0x000000FF
-    slli a1, a3, 4
+    slli a1, a3, 3
     sll a0, a0, a1
     lw a2, 0(t0)
     and a0, a0, a2
@@ -334,7 +342,7 @@ readImage:
 # t4 : outptr
 writeImage:
     addi a0, x0, 0x000000FF
-    slli a1, a4, 4
+    slli a1, a4, 3
     sll a0, a0, a1
     xori a0, a0, -1
     lw a1, 0(t4)
@@ -347,7 +355,7 @@ greater_0:
     blt a2, a1, value_saturated
     addi a2, x0, 255
 value_saturated:
-    slli a1, a4, 4
+    slli a1, a4, 3
     sll a1, a2, a1
     or a0, a0, a1
     sw a0, 0(t4)
