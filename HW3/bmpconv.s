@@ -41,9 +41,21 @@ bmpconv:
     add a3, x0, x0
     add a4, x0, x0
 
+# w_byte 선계산하기 (a2 후에 stack에 넣기)
+    srli a1, a2, 2
+    slli a1, a1, 2
+    sub a1, a2, a1
+    srli a2, a2, 2
+    add a0, a2, a2
+    add a2, a2, a0
+    add a2, a2, a1
+    slli a2, a2, 2
+
 # For loop : output[i][j]에 해당하는 pixel을 위한 convolution
-    addi sp, sp, -4
-    sw a2, 0(sp)
+    addi sp, sp, -12
+    sw t2, 8(sp) # w-2
+    sw t0, 4(sp) # original imgptr
+    sw a2, 0(sp) # w_byte
 
 outer_loop_start:
     beq t1, x0, outer_loop_end
@@ -74,7 +86,6 @@ inner_loop_start:
     lw a3, 24(sp)
     lw ra, 28(sp)
     addi sp, sp, 32
-
 
 write_pixel:
 # TODO: *outptr에 값쓰기
@@ -142,13 +153,12 @@ next_pixel:
 inner_loop_end:
 # TODO : 한행의 처리가 모두 끝났을 때 (padding 처리)
 # TODO : write padding
-    addi a1, x0, 4
 read_padding:
-    beq a3, x0, write_padding
-    addi a3, a3, 1
-    bne a3, a1, read_padding
+    lw t0, 4(sp) # original imgptr
+    lw a1, 0(sp) # w_byte
+    add t0, t0, a1
+    sw t0, 4(sp)
     add a3, x0, x0
-    addi t0, t0, 4
 
 write_padding:
     beq a4, x0, arg_update
@@ -168,11 +178,11 @@ write_padding:
 arg_update:
 # TODO : 변수 update
     addi t1, t1, -1
-    lw t2, 0(sp)
+    lw t2, 8(sp)
     beq x0, x0, outer_loop_start
 
 outer_loop_end:
-    addi sp, sp, 4
+    addi sp, sp, 12
     jalr x0, 0(ra)
 
 calPixel:
@@ -186,16 +196,6 @@ calPixel:
 # t2 (*) : temporary w --> kernel[q]
 # t3 (*) : kernel pointer --> temporary kernel pointer
 # t4 (*) : output pointer --> kernel offset
-
-# w_byte 선계산하기 (a2 후에 stack에 넣기)
-    srli a1, a2, 2
-    slli a1, a1, 2
-    sub a1, a2, a1
-    srli a2, a2, 2
-    add a0, a2, a2
-    add a2, a2, a0
-    add a2, a2, a1
-    slli a2, a2, 2
 
 # Stack Memory에 추가하기
     addi sp, sp, -32
