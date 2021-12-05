@@ -96,9 +96,6 @@ class IF(Pipe):
         #----------------------------------------------
 
     def compute(self):
-        if self.bubble:
-            return
-
         # DO NOT TOUCH -----------------------------------------------
         # Read out pipeline register values 
         self.pc     = IF.reg_pc
@@ -114,6 +111,8 @@ class IF(Pipe):
             self.exception = EXC_NONE
         #-------------------------------------------------------------
 
+        if self.bubble:
+            return
 
         # Compute PC + 4 using an adder
         self.pcplus4    = Pipe.cpu.adder_pcplus4.op(self.pc, 4)
@@ -135,7 +134,7 @@ class IF(Pipe):
             # Use Pipe.cpu.ras for the return address stack
             if c_br_type == BR_J:
                 # Jal Instruction - Always Taken
-                self.pc_next = Pipe.cpu.adder_if(self.pc, imm)
+                self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
                 if RISCV.rd(self.inst) == 1:
                     Pipe.cpu.rastack.push(self.pcplus4)
             elif c_br_type == BR_JR:
@@ -152,7 +151,7 @@ class IF(Pipe):
             else:
                 if imm < 0:
                     # Backward branch - Taken
-                    self.pc_next = Pipe.cpu.adder_if(self.pc, imm)
+                    self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
                 else:
                     # Forward branch - Not Taken
                     self.pc_next = self.pcplus4
@@ -235,9 +234,6 @@ class ID(Pipe):
 
 
     def compute(self):
-        if self.bubble:
-            return
-
         # Readout pipeline register values
         self.pc         = ID.reg_pc
         self.inst       = ID.reg_inst
@@ -450,12 +446,6 @@ class EX(Pipe):
 
 
     def compute(self):
-        # Check BUBBLE
-        if EX.reg_inst == WORD(BUBBLE):
-            self.bubble = True
-            return
-
-
         # Read out pipeline register values
         self.pc                 = EX.reg_pc
         self.inst               = EX.reg_inst
@@ -484,7 +474,7 @@ class EX(Pipe):
 
         # Branch Verification
         if self.c_br_type != BR_N:
-            if self.c_br_typec_br_type == BR_JR:
+            if self.c_br_type == BR_JR:
                 # Jalr Instruction - Always Not Taken
                 if Pipe.ID.reg_pc != self.alu_out:
                     # Mispredicted
@@ -501,7 +491,7 @@ class EX(Pipe):
                         (self.c_br_type == BR_LTU and self.alu_out != 1) or \
                         (self.c_br_type == BR_GEU and self.alu_out != 0):
 
-                        IF.pc_next = Pipe.cpu.adder_pcplus4(self.pc)
+                        IF.pc_next = Pipe.cpu.adder_pcplus4.op(self.pc)
                         Pipe.ID.bubble = True
                         Pipe.IF.bubble = True
                 else:
@@ -513,7 +503,7 @@ class EX(Pipe):
                         (self.c_br_type == BR_LTU and self.alu_out == 1) or \
                         (self.c_br_type == BR_GEU and self.alu_out == 0):
 
-                        IF.pc_next = Pipe.cpu.adder_if(self.pc, self.op2_data)
+                        IF.pc_next = Pipe.cpu.adder_if.op(self.pc, self.op2_data)
                         Pipe.ID.bubble = True
                         Pipe.IF.bubble = True
 
@@ -610,10 +600,6 @@ class M1(Pipe):
         #----------------------------------------------
 
     def compute(self):
-        if M1.reg_inst == WORD(BUBBLE):
-            self.bubble = True
-            return
-
         # Read out pipeline register values
         self.pc             = M1.reg_pc
         self.inst           = M1.reg_inst
@@ -625,6 +611,10 @@ class M1(Pipe):
         self.c_dmem_en      = M1.reg_c_dmem_en
         self.c_dmem_rw      = M1.reg_c_dmem_rw
         self.alu_out        = M1.reg_alu_out  
+
+        if M1.reg_inst == WORD(BUBBLE):
+            self.bubble = True
+            return
 
         # DO NOT TOUCH -----------------------------------------------
         # Access dmem usign access2(): MM_STAGE1
@@ -717,11 +707,6 @@ class M2(Pipe):
         #----------------------------------------------
 
     def compute(self):
-        # Check BUBBLE
-        if M2.reg_inst == WORD(BUBBLE):
-            self.bubble = True
-            return
-
         # Read out pipeline register values
         self.pc             = M2.reg_pc
         self.inst           = M2.reg_inst
@@ -733,6 +718,11 @@ class M2(Pipe):
         self.c_dmem_en      = M2.reg_c_dmem_en
         self.c_dmem_rw      = M2.reg_c_dmem_rw
         self.alu_out        = M2.reg_alu_out  
+
+        # Check BUBBLE
+        if M2.reg_inst == WORD(BUBBLE):
+            self.bubble = True
+            return
 
         # DO NOT TOUCH -----------------------------------------------
         # Access dmem usign access2(): MM_STAGE2
@@ -815,10 +805,6 @@ class WB(Pipe):
         #----------------------------------------------
 
     def compute(self):
-        if WB.reg_inst == WORD(BUBBLE):
-            self.bubble = True
-            return
-
         # Read out pipeline register values
         self.pc             = WB.reg_pc
         self.inst           = WB.reg_inst
@@ -826,6 +812,10 @@ class WB(Pipe):
         self.rd             = WB.reg_rd
         self.c_rf_wen       = WB.reg_c_rf_wen
         self.wbdata         = WB.reg_wbdata  
+
+        if WB.reg_inst == WORD(BUBBLE):
+            self.bubble = True
+            return
 
         # nothing to compute here
 
