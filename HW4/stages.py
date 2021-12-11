@@ -311,11 +311,11 @@ class ID(Pipe):
         EX_load_inst = EX.reg_c_dmem_en and EX.reg_c_dmem_rw == M_XRD
         M1_load_inst = M1.reg_c_dmem_en and M1.reg_c_dmem_rw == M_XRD
         load_use_hazard     = ((EX_load_inst and EX.reg_rd != 0) and             \
-                              ((EX.reg_rd == Pipe.ID.rs1 and self.rs1_oen) or        \
-                               (EX.reg_rd == Pipe.ID.rs2 and self.rs2_oen))) or \
+                              ((EX.reg_rd == Pipe.ID.rs1 and self.c_rs1_oen) or        \
+                               (EX.reg_rd == Pipe.ID.rs2 and self.c_rs2_oen))) or \
                               ((M1_load_inst and M1.reg_rd != 0) and \
-                               ((M1.reg_rd == Pipe.ID.rs1 and self.rs1_oen) or \
-                                (M1.reg_rd == Pipe.ID.rs2 and self.rs2_oen)))
+                               ((M1.reg_rd == Pipe.ID.rs1 and self.c_rs1_oen) or \
+                                (M1.reg_rd == Pipe.ID.rs2 and self.c_rs2_oen)))
 
 
         # TODO: Check for mispredicted branch/jump
@@ -329,7 +329,7 @@ class ID(Pipe):
         self.IF_stall       = load_use_hazard or M1_M2_hazard
         self.ID_stall       = load_use_hazard or M1_M2_hazard
         self.ID_bubble      = EX_brjmp
-        self.EX_bubble      = load_use_hazard or EX_brjmp
+        self.EX_bubble      = load_use_hazard or EX_brjmp or M1_M2_hazard
         # -------------------------------------------------------------
 
 
@@ -354,7 +354,7 @@ class ID(Pipe):
         # The order matters: EX -> MM -> WB (forwarding from the closest stage)
         self.op1_data = self.pc         if self.c_op1_sel == OP1_PC       else \
                         Pipe.EX.alu_out if self.c_fwd_op1 == FWD_EX       else \
-                        Pipe.M1.wbdata  if self.c_fwd_op1 == FWD_M1       else \
+                        Pipe.M1.alu_out if self.c_fwd_op1 == FWD_M1       else \
                         Pipe.M2.wbdata  if self.c_fwd_op1 == FWD_M2       else \
                         Pipe.WB.wbdata  if self.c_fwd_op1 == FWD_WB       else \
                         rf_rs1_data
@@ -362,7 +362,7 @@ class ID(Pipe):
         # Get forwarded value for rs2 if necessary
         # The order matters: EX -> MM -> WB (forwarding from the closest stage)
         self.op2_data = Pipe.EX.alu_out if self.c_fwd_op2 == FWD_EX       else \
-                        Pipe.M1.wbdata  if self.c_fwd_op2 == FWD_M1       else \
+                        Pipe.M1.alu_out if self.c_fwd_op2 == FWD_M1       else \
                         Pipe.M2.wbdata  if self.c_fwd_op2 == FWD_M2       else \
                         Pipe.WB.wbdata  if self.c_fwd_op2 == FWD_WB       else \
                         alu_op2
@@ -372,7 +372,7 @@ class ID(Pipe):
         # For sw and branch instructions, we need to carry R[rs2] as well
         # -- in these instructions, op2_data will hold an immediate value
         self.rs2_data = Pipe.EX.alu_out if self.c_fwd_rs2 == FWD_EX       else \
-                        Pipe.M1.wbdata  if self.c_fwd_rs2 == FWD_M1       else \
+                        Pipe.M1.alu_out if self.c_fwd_rs2 == FWD_M1       else \
                         Pipe.M2.wbdata  if self.c_fwd_rs2 == FWD_M2       else \
                         Pipe.WB.wbdata  if self.c_fwd_rs2 == FWD_WB       else \
                         rf_rs2_data
