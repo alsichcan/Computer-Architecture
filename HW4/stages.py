@@ -116,10 +116,58 @@ class IF(Pipe):
         # Use Pipe.cpu.adder_if if you need an additional adder
         # Use Pipe.cpu.ras for the return address stack
         # Select next PC
-        self.pc_next =  self.pcplus4            if Pipe.ID.c_pc_sel == PC_4      else \
-                        Pipe.EX.brjmp_target    if Pipe.ID.c_pc_sel == PC_BRJMP  else \
-                        Pipe.EX.jump_reg_target if Pipe.ID.c_pc_sel == PC_JALR   else \
-                        WORD(0)
+        # self.pc_next =  self.pcplus4            if Pipe.ID.c_pc_sel == PC_4      else \
+        #                 Pipe.EX.brjmp_target    if Pipe.ID.c_pc_sel == PC_BRJMP  else \
+        #                 Pipe.EX.jump_reg_target if Pipe.ID.c_pc_sel == PC_JALR   else \
+        #                 WORD(0)
+
+        opcode = RISCV.opcode(self.inst)
+        if opcode in [EBREAK, ECALL]:
+            self.exception |= EXC_EBREAK
+        elif opcode == ILLEGAL:
+            self.exception |= EXC_ILLEGAL_INST
+            self.inst = BUBBLE
+            opcode = RISCV.opcode(self.inst)
+
+        cs = csignals[opcode]
+        c_br_type = cs[CS_BR_TYPE]  # Branch Type
+        c_op2_sel  = cs[CS_OP2_SEL] # IMM value
+
+        if c_br_type == BR_N:
+            self.pc_next = self.pcplus4
+        else:
+            imm             = RISCV.imm_i(self.inst)   if c_op2_sel == OP2_IMI      else \
+                              RISCV.imm_b(self.inst)   if c_op2_sel == OP2_IMB      else \
+                              RISCV.imm_j(self.inst)   if c_op2_sel == OP2_IMJ      else \
+                              WORD(0)
+
+            # Use Pipe.cpu.ras for the return address stack
+            if c_br_type == BR_J:
+                # Jal Instruction - Always Taken
+                self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+                # if RISCV.rd(self.inst) == 1:
+                #     Pipe.cpu.rastack.push(self.pcplus4)
+            elif c_br_type == BR_JR:
+                # Jalr Instruction - Always Not Taken
+                self.pc_next = self.pcplus4
+
+                # if RISCV.rd(self.inst) == 1:
+                #     Pipe.cpu.rastack.push(self.pcplus4)
+
+                # if RISCV.rd(self.inst) == 0 and \
+                #     RISCV.rs1(self.inst) == 1 and \
+                #     imm == 0:
+                #     self.pc_next, status = Pipe.cpu.rastack.pop()
+            else:
+                if imm < 0:
+                    # Backward branch - Taken
+                    self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+                else:
+                    # Forward branch - Not Taken
+                    self.pc_next = self.pcplus4
+
+        if Pipe.EX.brjmp_miss:
+            self.pc_next = Pipe.EX.brjmp_target
 
     def update(self):
         if not Pipe.ID.IF_stall:
@@ -315,10 +363,6 @@ class ID(Pipe):
                                ((M1.reg_rd == Pipe.ID.rs1 and self.c_rs1_oen) or \
                                 (M1.reg_rd == Pipe.ID.rs2 and self.c_rs2_oen)))
 
-
-        # TODO: Check for mispredicted branch/jump
-        EX_brjmp            = self.c_pc_sel != PC_4
-
         # Check for M1-M2 hazard
         M1_M2_hazard = self.c_dmem_en and Pipe.EX.c_dmem_en
 
@@ -326,8 +370,8 @@ class ID(Pipe):
         # For mispredicted branches, instructions in ID and IF should be cancelled (become BUBBLE)
         self.IF_stall       = load_use_hazard or M1_M2_hazard
         self.ID_stall       = load_use_hazard or M1_M2_hazard
-        self.ID_bubble      = EX_brjmp
-        self.EX_bubble      = load_use_hazard or EX_brjmp or M1_M2_hazard
+        self.ID_bubble      = Pipe.EX.brjmp_miss
+        self.EX_bubble      = load_use_hazard or Pipe.EX.brjmp_miss or M1_M2_hazard
         # -------------------------------------------------------------
 
 
@@ -491,10 +535,42 @@ class EX(Pipe):
 
         # TODO : Branch Verification
         # Adjust the output for jalr instruction (forwarded to IF)
-        self.jump_reg_target    = self.alu_out & WORD(0xfffffffe)
+        # self.jump_reg_target    = self.alu_out & WORD(0xfffffffe)
+        #
+        # # Calculate the branch/jump target address using an adder (forwarded to IF)
+        # self.brjmp_target       = Pipe.cpu.adder_brtarget.op(self.pc, self.op2_data)
+        #
 
-        # Calculate the branch/jump target address using an adder (forwarded to IF)
-        self.brjmp_target       = Pipe.cpu.adder_brtarget.op(self.pc, self.op2_data)
+        self.brjmp_miss = False
+        if self.c_br_type != BR_N:
+            if self.c_br_type == BR_JR:
+                # Jalr Instruction - Always Not Taken
+                self.brjmp_miss = True
+                self.brjmp_target = self.alu_out & WORD(0xfffffffe)
+            elif self.c_br_type == BR_J:
+                # Jal Instruction - Always Taken
+                pass # No Need for Verification
+            else:
+                if self.op2_data < 0:
+                    # Backward branch - Taken
+                    if (self.c_br_type == BR_EQ and self.alu_out != 1) or \
+                            (self.c_br_type == BR_NE and self.alu_out != 0) or \
+                            (self.c_br_type == BR_LT and self.alu_out != 1) or \
+                            (self.c_br_type == BR_GE and self.alu_out != 0) or \
+                            (self.c_br_type == BR_LTU and self.alu_out != 1) or \
+                            (self.c_br_type == BR_GEU and self.alu_out != 0):
+                        self.brjmp_miss = True
+                        self.brjmp_target = Pipe.cpu.adder_pcplus4.op(self.pc)
+                else:
+                    # Forward branch - Not Taken
+                    if (self.c_br_type == BR_EQ and self.alu_out == 1) or \
+                            (self.c_br_type == BR_NE and self.alu_out == 0) or \
+                            (self.c_br_type == BR_LT and self.alu_out == 1) or \
+                            (self.c_br_type == BR_GE and self.alu_out == 0) or \
+                            (self.c_br_type == BR_LTU and self.alu_out == 1) or \
+                            (self.c_br_type == BR_GEU and self.alu_out == 0):
+                        self.brjmp_miss = True
+                        self.brjmp_target = Pipe.cpu.adder_if.op(self.pc, self.op2_data)
 
         # For jal and jalr instructions, pc+4 should be written to the rd
         if self.c_wb_sel == WB_PC4:
