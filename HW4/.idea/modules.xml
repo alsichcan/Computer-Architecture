@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/HW4.iml" filepath="$PROJECT_DIR$/.idea/HW4.iml" />
+      <module fileurl="file://$PROJECT_DIR$/pyrisc/pipe5/.idea/pipe5.iml" filepath="$PROJECT_DIR$/pyrisc/pipe5/.idea/pipe5.iml" />
     </modules>
   </component>
 </project>
