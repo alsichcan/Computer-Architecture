@@ -84,7 +84,6 @@ class IF(Pipe):
 
     def __init__(self):
         super().__init__()
-        self.bubble = False
         # Internal signals:----------------------------
         #
         #   self.pc                 # Pipe.IF.pc
@@ -120,41 +119,41 @@ class IF(Pipe):
 
         # Use Pipe.cpu.adder_if if you need an additional adder
         # Branch Prediction
-        opcode = RISCV.opcode(self.inst)
-        cs = csignals[opcode]
-        c_br_type = cs[CS_BR_TYPE]  # Branch Type
-        c_op2_sel  = cs[CS_OP2_SEL] # IMM value
-
-        if c_br_type != BR_N:
-            imm             = RISCV.imm_i(self.inst)   if c_op2_sel == OP2_IMI      else \
-                              RISCV.imm_b(self.inst)   if c_op2_sel == OP2_IMB      else \
-                              RISCV.imm_j(self.inst)   if c_op2_sel == OP2_IMJ      else \
-                              WORD(0)
-
-            # Use Pipe.cpu.ras for the return address stack
-            if c_br_type == BR_J:
-                # Jal Instruction - Always Taken
-                self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
-                if RISCV.rd(self.inst) == 1:
-                    Pipe.cpu.rastack.push(self.pcplus4)
-            elif c_br_type == BR_JR:
-                # Jalr Instruction - Always Not Taken
-                self.pc_next = self.pcplus4
-
-                if RISCV.rd(self.inst) == 1:
-                    Pipe.cpu.rastack.push(self.pcplus4)
-
-                if RISCV.rd(self.inst) == 0 and \
-                    RISCV.rs1(self.inst) == 1 and \
-                    imm == 0:
-                    self.pc_next, status = Pipe.cpu.rastack.pop()
-            else:
-                if imm < 0:
-                    # Backward branch - Taken
-                    self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
-                else:
-                    # Forward branch - Not Taken
-                    self.pc_next = self.pcplus4
+        # opcode = RISCV.opcode(self.inst)
+        # cs = csignals[opcode]
+        # c_br_type = cs[CS_BR_TYPE]  # Branch Type
+        # c_op2_sel  = cs[CS_OP2_SEL] # IMM value
+        #
+        # if c_br_type != BR_N:
+        #     imm             = RISCV.imm_i(self.inst)   if c_op2_sel == OP2_IMI      else \
+        #                       RISCV.imm_b(self.inst)   if c_op2_sel == OP2_IMB      else \
+        #                       RISCV.imm_j(self.inst)   if c_op2_sel == OP2_IMJ      else \
+        #                       WORD(0)
+        #
+        #     # Use Pipe.cpu.ras for the return address stack
+        #     if c_br_type == BR_J:
+        #         # Jal Instruction - Always Taken
+        #         self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+        #         if RISCV.rd(self.inst) == 1:
+        #             Pipe.cpu.rastack.push(self.pcplus4)
+        #     elif c_br_type == BR_JR:
+        #         # Jalr Instruction - Always Not Taken
+        #         self.pc_next = self.pcplus4
+        #
+        #         if RISCV.rd(self.inst) == 1:
+        #             Pipe.cpu.rastack.push(self.pcplus4)
+        #
+        #         if RISCV.rd(self.inst) == 0 and \
+        #             RISCV.rs1(self.inst) == 1 and \
+        #             imm == 0:
+        #             self.pc_next, status = Pipe.cpu.rastack.pop()
+        #     else:
+        #         if imm < 0:
+        #             # Backward branch - Taken
+        #             self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+        #         else:
+        #             # Forward branch - Not Taken
+        #             self.pc_next = self.pcplus4
 
     def update(self):
 
@@ -201,10 +200,6 @@ class ID(Pipe):
     
     def __init__(self):
         super().__init__()
-        self.bubble = False
-        self.IF_stall = False
-        self.ID_stall = False
-
         # Internal signals:----------------------------
         #
         #   self.pc                 # Pipe.ID.pc
@@ -792,7 +787,6 @@ class WB(Pipe):
 
     def __init__(self):
         super().__init__()
-        self.bubble = False
         # Internal signals:----------------------------
         #
         #   self.pc                 # Pipe.WB.pc
