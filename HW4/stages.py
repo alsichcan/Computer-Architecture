@@ -118,9 +118,9 @@ class IF(Pipe):
 
         # TODO : Part 2 & 3 - Next Instruction
         # Select next PC
-        self.pc_next =  self.pcplus4            if Pipe.ID.pc_sel == PC_4      else \
-                        Pipe.EX.brjmp_target    if Pipe.ID.pc_sel == PC_BRJMP  else \
-                        Pipe.EX.jump_reg_target if Pipe.ID.pc_sel == PC_JALR   else \
+        self.pc_next =  self.pcplus4            if Pipe.ID.c_pc_sel == PC_4      else \
+                        Pipe.EX.brjmp_target    if Pipe.ID.c_pc_sel == PC_BRJMP  else \
+                        Pipe.EX.jump_reg_target if Pipe.ID.c_pc_sel == PC_JALR   else \
                         WORD(0)
 
     def update(self):
@@ -135,12 +135,12 @@ class IF(Pipe):
             ID.reg_pc = self.pc
             ID.reg_inst = WORD(BUBBLE)
             ID.reg_exception = WORD(EXC_NONE)
-            #ID.reg_pcplus4 = WORD(0)
+            ID.reg_pcplus4 = WORD(0)
         elif not Pipe.ID.ID_stall:
             ID.reg_pc = self.pc
             ID.reg_inst = self.inst
             ID.reg_exception = self.exception
-            #ID.reg_pcplus4 = self.pcplus4
+            ID.reg_pcplus4 = self.pcplus4
         else:  # Pipe.CTL.ID_stall
             pass  # Do not update
 
@@ -164,6 +164,7 @@ class ID(Pipe):
     reg_pc = WORD(0)  # ID.reg_pc
     reg_inst = WORD(BUBBLE)  # ID.reg_inst
     reg_exception = WORD(EXC_NONE)  # ID.reg_exception
+    reg_pcplus4     = WORD(0)           # ID.reg_pcplus4
 
     # --------------------------------------------------
 
@@ -269,13 +270,13 @@ class ID(Pipe):
         # Control signal for forwarding rs1 value to op1_data
         # The c_rf_wen signal can be disabled when we have an exception during dmem access,
         # so Pipe.MM.c_rf_wen should be used instead of MM.reg_c_rf_wen.
-        self.c_fwd_op1        =   FWD_EX      if (EX.reg_rd == Pipe.ID.rs1) and self.rs1_oen and   \
+        self.c_fwd_op1        =   FWD_EX      if (EX.reg_rd == Pipe.ID.rs1) and self.c_rs1_oen and   \
                                                (EX.reg_rd != 0) and EX.reg_c_rf_wen else    \
-                                FWD_M1      if (M1.reg_rd == Pipe.ID.rs1) and self.rs1_oen and   \
+                                FWD_M1      if (M1.reg_rd == Pipe.ID.rs1) and self.c_rs1_oen and   \
                                                (M1.reg_rd != 0) and Pipe.M1.c_rf_wen else   \
-                                FWD_M2      if (M2.reg_rd == Pipe.ID.rs1) and self.rs1_oen and   \
+                                FWD_M2      if (M2.reg_rd == Pipe.ID.rs1) and self.c_rs1_oen and   \
                                                (M2.reg_rd != 0) and Pipe.M2.c_rf_wen else   \
-                                FWD_WB      if (WB.reg_rd == Pipe.ID.rs1) and self.rs1_oen and   \
+                                FWD_WB      if (WB.reg_rd == Pipe.ID.rs1) and self.c_rs1_oen and   \
                                                (WB.reg_rd != 0) and WB.reg_c_rf_wen else    \
                                 FWD_NONE
 
@@ -295,13 +296,13 @@ class ID(Pipe):
                                 FWD_NONE
 
         # Control signal for forwarding rs2 value to rs2_data
-        self.c_fwd_rs2        =   FWD_EX      if (EX.reg_rd == Pipe.ID.rs2) and self.rs2_oen and   \
+        self.c_fwd_rs2        =   FWD_EX      if (EX.reg_rd == Pipe.ID.rs2) and self.c_rs2_oen and   \
                                                (EX.reg_rd != 0) and EX.reg_c_rf_wen  else   \
-                                FWD_M1      if (M1.reg_rd == Pipe.ID.rs2) and self.rs2_oen and   \
+                                FWD_M1      if (M1.reg_rd == Pipe.ID.rs2) and self.c_rs2_oen and   \
                                                (M1.reg_rd != 0) and Pipe.M1.c_rf_wen else \
-                                FWD_M2      if (M2.reg_rd == Pipe.ID.rs2) and self.rs2_oen and \
+                                FWD_M2      if (M2.reg_rd == Pipe.ID.rs2) and self.c_rs2_oen and \
                                                (M2.reg_rd != 0) and Pipe.M2.c_rf_wen else \
-                                FWD_WB      if (WB.reg_rd == Pipe.ID.rs2) and self.rs2_oen and   \
+                                FWD_WB      if (WB.reg_rd == Pipe.ID.rs2) and self.c_rs2_oen and   \
                                                (WB.reg_rd != 0) and WB.reg_c_rf_wen  else   \
                                 FWD_NONE
 
@@ -318,7 +319,7 @@ class ID(Pipe):
 
 
         # TODO: Check for mispredicted branch/jump
-        EX_brjmp            = self.pc_sel != PC_4
+        EX_brjmp            = self.c_pc_sel != PC_4
 
         # Check for M1-M2 hazard
         M1_M2_hazard = self.c_dmem_en and Pipe.EX.c_dmem_en
@@ -394,12 +395,12 @@ class ID(Pipe):
             EX.reg_op1_data         = self.op1_data
             EX.reg_op2_data         = self.op2_data
             EX.reg_rs2_data         = self.rs2_data
-            EX.reg_c_br_type        = Pipe.CTL.br_type
-            EX.reg_c_alu_fun        = Pipe.CTL.alu_fun
-            EX.reg_c_wb_sel         = Pipe.CTL.wb_sel
-            EX.reg_c_rf_wen         = Pipe.CTL.rf_wen
-            EX.reg_c_dmem_en        = Pipe.CTL.dmem_en
-            EX.reg_c_dmem_rw        = Pipe.CTL.dmem_rw
+            EX.reg_c_br_type        = self.c_br_type
+            EX.reg_c_alu_fun        = self.c_alu_fun
+            EX.reg_c_wb_sel         = self.c_wb_sel
+            EX.reg_c_rf_wen         = self.c_rf_wen
+            EX.reg_c_dmem_en        = self.c_dmem_en
+            EX.reg_c_dmem_rw        = self.c_dmem_rw
             EX.reg_pcplus4          = self.pcplus4
 
         # DO NOT TOUCH -----------------------------------------------
