@@ -112,11 +112,9 @@ class IF(Pipe):
         # Compute PC + 4 using an adder
         self.pcplus4 = Pipe.cpu.adder_pcplus4.op(self.pc, 4)
 
-        # Use Pipe.cpu.adder_if if you need an additional adder
-
-        # Use Pipe.cpu.ras for the return address stack
-
         # TODO : Part 2 & 3 - Next Instruction
+        # Use Pipe.cpu.adder_if if you need an additional adder
+        # Use Pipe.cpu.ras for the return address stack
         # Select next PC
         self.pc_next =  self.pcplus4            if Pipe.ID.c_pc_sel == PC_4      else \
                         Pipe.EX.brjmp_target    if Pipe.ID.c_pc_sel == PC_BRJMP  else \
