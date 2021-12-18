@@ -115,67 +115,56 @@ class IF(Pipe):
         # TODO : Part 2 & 3 - Next Instruction
         # Use Pipe.cpu.adder_if if you need an additional adder
         # Use Pipe.cpu.ras for the return address stack
-        # Select next PC
-        # self.pc_next =  self.pcplus4            if Pipe.ID.c_pc_sel == PC_4      else \
-        #                 Pipe.EX.brjmp_target    if Pipe.ID.c_pc_sel == PC_BRJMP  else \
-        #                 Pipe.EX.jump_reg_target if Pipe.ID.c_pc_sel == PC_JALR   else \
-        #                 WORD(0)
-
-        opcode = RISCV.opcode(self.inst)
-        if opcode in [EBREAK, ECALL]:
-            self.exception |= EXC_EBREAK
-        elif opcode == ILLEGAL:
-            self.exception |= EXC_ILLEGAL_INST
-            self.inst = BUBBLE
-            opcode = RISCV.opcode(self.inst)
-
-        cs = csignals[opcode]
-        c_br_type = cs[CS_BR_TYPE]  # Branch Type
-        c_op2_sel  = cs[CS_OP2_SEL] # IMM value
-
-        if c_br_type == BR_N:
-            self.pc_next = self.pcplus4
-        else:
-            imm             = RISCV.imm_i(self.inst)   if c_op2_sel == OP2_IMI      else \
-                              RISCV.imm_b(self.inst)   if c_op2_sel == OP2_IMB      else \
-                              RISCV.imm_j(self.inst)   if c_op2_sel == OP2_IMJ      else \
-                              WORD(0)
-
-            # Use Pipe.cpu.ras for the return address stack
-            if c_br_type == BR_J:
-                # Jal Instruction - Always Taken
-                self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
-                # if RISCV.rd(self.inst) == 1:
-                #     Pipe.cpu.rastack.push(self.pcplus4)
-            elif c_br_type == BR_JR:
-                # Jalr Instruction - Always Not Taken
-                self.pc_next = self.pcplus4
-
-                # if RISCV.rd(self.inst) == 1:
-                #     Pipe.cpu.rastack.push(self.pcplus4)
-
-                # if RISCV.rd(self.inst) == 0 and \
-                #     RISCV.rs1(self.inst) == 1 and \
-                #     imm == 0:
-                #     self.pc_next, status = Pipe.cpu.rastack.pop()
-            else:
-                if imm < 0:
-                    # Backward branch - Taken
-                    self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
-                else:
-                    # Forward branch - Not Taken
-                    self.pc_next = self.pcplus4
 
         if Pipe.EX.brjmp_miss:
             self.pc_next = Pipe.EX.brjmp_target
+        else:
+            opcode = RISCV.opcode(self.inst)
+            if opcode in [ILLEGAL, EBREAK, ECALL]:
+                self.pc_next = self.pcplus4
+            else:
+                cs = csignals[opcode]
+                c_br_type = cs[CS_BR_TYPE]  # Branch Type
+                c_op2_sel  = cs[CS_OP2_SEL] # IMM value
+
+                if c_br_type == BR_N:
+                    self.pc_next = self.pcplus4
+                else:
+                    imm             = SWORD(RISCV.imm_i(self.inst))   if c_op2_sel == OP2_IMI      else \
+                                      SWORD(RISCV.imm_b(self.inst))   if c_op2_sel == OP2_IMB      else \
+                                      SWORD(RISCV.imm_j(self.inst))   if c_op2_sel == OP2_IMJ      else \
+                                      SWORD(0)
+
+                    # Use Pipe.cpu.ras for the return address stack
+                    if c_br_type == BR_J:
+                        # Jal Instruction - Always Taken
+                        self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+                        if RISCV.rd(self.inst) == 1:
+                            Pipe.cpu.ras.push(self.pcplus4)
+                    elif c_br_type == BR_JR:
+                        # Jalr Instruction - Always Not Taken
+                        self.pc_next = self.pcplus4
+
+                        if RISCV.rd(self.inst) == 1:
+                            Pipe.cpu.ras.push(self.pcplus4)
+
+                        if RISCV.rd(self.inst) == 0 and \
+                            RISCV.rs1(self.inst) == 1 and \
+                            imm == 0:
+                            self.pc_next, status = Pipe.cpu.ras.pop()
+                            if not status:
+                                self.pc_next = self.pcplus4
+                    else:
+                        if imm < 0:
+                            # Backward branch - Taken
+                            self.pc_next = Pipe.cpu.adder_if.op(self.pc, imm)
+                        else:
+                            # Forward branch - Not Taken
+                            self.pc_next = self.pcplus4
 
     def update(self):
         if not Pipe.ID.IF_stall:
             IF.reg_pc = self.pc_next
-
-        # if (Pipe.ID.ID_bubble and Pipe.ID.ID_stall):
-        #     print("Assert failed: ID_bubble && ID_stall")
-        #     sys_exit()
 
         if Pipe.ID.ID_bubble:
             ID.reg_pc = self.pc
@@ -187,7 +176,7 @@ class IF(Pipe):
             ID.reg_inst = self.inst
             ID.reg_exception = self.exception
             ID.reg_pcplus4 = self.pcplus4
-        else:  # Pipe.CTL.ID_stall
+        else:  # Pipe.ID.ID_stall
             pass  # Do not update
 
         # DO NOT TOUCH -----------------------------------------------
@@ -257,11 +246,11 @@ class ID(Pipe):
         self.rs2 = RISCV.rs2(self.inst)
         self.rd = RISCV.rd(self.inst)
 
-        imm_i = RISCV.imm_i(self.inst)
-        imm_s = RISCV.imm_s(self.inst)
-        imm_b = RISCV.imm_b(self.inst)
-        imm_u = RISCV.imm_u(self.inst)
-        imm_j = RISCV.imm_j(self.inst)
+        imm_i = SWORD(RISCV.imm_i(self.inst))
+        imm_s = SWORD(RISCV.imm_s(self.inst))
+        imm_b = SWORD(RISCV.imm_b(self.inst))
+        imm_u = SWORD(RISCV.imm_u(self.inst))
+        imm_j = SWORD(RISCV.imm_j(self.inst))
 
         # Generate control signals
 
@@ -373,14 +362,6 @@ class ID(Pipe):
         self.ID_bubble      = Pipe.EX.brjmp_miss
         self.EX_bubble      = load_use_hazard or Pipe.EX.brjmp_miss or M1_M2_hazard
         # -------------------------------------------------------------
-
-
-        self.op1_data = rf_rs1_data
-        self.rs2_data = rf_rs2_data
-        self.op2_data = imm_i if self.c_op2_sel == OP2_IMI else \
-            imm_s if self.c_op2_sel == OP2_IMS else \
-                WORD(0)
-
 
         # Determine ALU operand 2: R[rs2] or immediate values
         alu_op2 =       rf_rs2_data     if self.c_op2_sel == OP2_RS2      else \
@@ -534,24 +515,25 @@ class EX(Pipe):
         self.alu_out = Pipe.cpu.alu.op(self.c_alu_fun, self.op1_data, self.alu2_data)
 
         # TODO : Branch Verification
-        # Adjust the output for jalr instruction (forwarded to IF)
-        # self.jump_reg_target    = self.alu_out & WORD(0xfffffffe)
-        #
-        # # Calculate the branch/jump target address using an adder (forwarded to IF)
-        # self.brjmp_target       = Pipe.cpu.adder_brtarget.op(self.pc, self.op2_data)
-        #
-
         self.brjmp_miss = False
         if self.c_br_type != BR_N:
             if self.c_br_type == BR_JR:
-                # Jalr Instruction - Always Not Taken
-                self.brjmp_miss = True
-                self.brjmp_target = self.alu_out & WORD(0xfffffffe)
+                    # Jalr instruction - MISPREDICTED
+                if RISCV.rd(self.inst) == 0 and \
+                        RISCV.rs1(self.inst) == 1 and \
+                        SWORD(self.op2_data) == 0:
+                    self.brjmp_target = self.alu_out & WORD(0xfffffffe)
+                    if self.brjmp_target != Pipe.ID.reg_pc:
+                        self.brjmp_miss = True
+                else:
+                    # Jalr Instruction - Always Not Taken
+                    self.brjmp_miss = True
+                    self.brjmp_target = self.alu_out & WORD(0xfffffffe)
             elif self.c_br_type == BR_J:
                 # Jal Instruction - Always Taken
                 pass # No Need for Verification
             else:
-                if self.op2_data < 0:
+                if SWORD(self.op2_data) < 0:
                     # Backward branch - Taken
                     if (self.c_br_type == BR_EQ and self.alu_out != 1) or \
                             (self.c_br_type == BR_NE and self.alu_out != 0) or \
